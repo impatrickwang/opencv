@@ -532,6 +532,7 @@ struct CvCapture_FFMPEG
     double getProperty(int) const;
     bool setProperty(int, double);
     bool grabFrame();
+    AVPixelFormat getDstPixelFormat(AVPixelFormat src_pix_fmt) const;
     bool retrieveFrame(int flag, unsigned char** data, int* step, int* width, int* height, int* cn, int* depth);
     bool retrieveHWFrame(cv::OutputArray output);
     void rotateFrame(cv::Mat &mat) const;
@@ -1608,6 +1609,21 @@ bool CvCapture_FFMPEG::grabFrame()
     return valid;
 }
 
+AVPixelFormat CvCapture_FFMPEG::getDstPixelFormat(const AVPixelFormat src_pix_fmt) const {
+    switch (src_pix_fmt) {
+        case AV_PIX_FMT_YUVA420P:
+        case AV_PIX_FMT_YUVA422P:
+        case AV_PIX_FMT_YUVA444P:
+        case AV_PIX_FMT_ARGB:
+        case AV_PIX_FMT_RGBA:
+        case AV_PIX_FMT_ABGR:
+        case AV_PIX_FMT_BGRA:
+            return AV_PIX_FMT_BGRA;
+        default:
+            return AV_PIX_FMT_BGR24;
+    }
+}
+
 bool CvCapture_FFMPEG::retrieveFrame(int flag, unsigned char** data, int* step, int* width, int* height, int* cn, int* depth)
 {
     if (!video_st || (!rawMode && !context))
@@ -1650,10 +1666,11 @@ bool CvCapture_FFMPEG::retrieveFrame(int flag, unsigned char** data, int* step, 
         return false;
 
     CV_LOG_DEBUG(NULL, "Input picture format: " << av_get_pix_fmt_name((AVPixelFormat)sw_picture->format));
-    const AVPixelFormat result_format = convertRGB ? AV_PIX_FMT_BGR24 : (AVPixelFormat)sw_picture->format;
+    const AVPixelFormat result_format = convertRGB ? getDstPixelFormat((AVPixelFormat)sw_picture->format) : (AVPixelFormat)sw_picture->format;
     switch (result_format)
     {
     case AV_PIX_FMT_BGR24: *depth = CV_8U; *cn = 3; break;
+    case AV_PIX_FMT_BGRA: *depth = CV_8U; *cn = 4; break;
     case AV_PIX_FMT_GRAY8: *depth = CV_8U; *cn = 1; break;
     case AV_PIX_FMT_GRAY16LE: *depth = CV_16U; *cn = 1; break;
     default:
